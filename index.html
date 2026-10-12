@@ -20,7 +20,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <script src="soal.js"></script>
 <script>
 const A=document.getElementById('app'),G=i=>document.getElementById(i),S={u:null,tes:null,i:0,jw:{},hasil:{}};
-const h=s=>A.innerHTML=s,esc=s=>String(s).replace(/[&<>"]/g,c=({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+const h=s=>A.innerHTML=s,esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 function login(){h(`<h1>Tes Bakat Siswa SMA</h1><p class="m">Isi data dirimu dulu, lalu pilih tes yang ingin dikerjakan.</p><div class="card">
 <label for="e">Email</label><input id="e" type="email" autocomplete="email">
 <label for="n">Nama lengkap</label><input id="n" autocomplete="name">
