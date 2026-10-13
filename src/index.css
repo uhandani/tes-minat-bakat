@@ -1,2 +1,8 @@
 @import "tailwindcss";
+@theme {
+  --color-brand: #67338a;
+  --color-brand-dark: #4a1f6b;
+  --color-gold: #f5e51b;
+  --color-line: #ddd3e6;
+}
 body { background: #f7f4fa; color: #1e1530; font-family: "Segoe UI", Roboto, system-ui, sans-serif; }
