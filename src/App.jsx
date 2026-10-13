@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 
 const Btn = ({ className = '', ...p }) => (
@@ -83,7 +83,63 @@ function Verifikasi({ onSelesai }) {
   )
 }
 
-function Beranda({ siswa }) {
+function Tes({ tes, onKembali }) {
+  const [d, setD] = useState(null), [i, setI] = useState(0), [sisa, setSisa] = useState(0)
+  const [hasil, setHasil] = useState(null), [err, setErr] = useState(''), [, tick] = useState(0)
+  const jw = useRef({}), akhir = useRef(0), terkirim = useRef(false)
+  const kirim = async () => {
+    if (terkirim.current) return
+    terkirim.current = true
+    const { data, error } = await supabase.rpc('kirim_jawaban', { p_tes: tes.id, p_jawaban: jw.current })
+    error ? setErr('Jawaban gagal dikirim. Hubungi guru.') : setHasil(data)
+  }
+  useEffect(() => {
+    supabase.rpc('mulai_tes', { p_tes: tes.id }).then(({ data, error }) => {
+      if (error) return setErr('Tes tidak bisa dimulai. Mungkin sudah pernah dikerjakan.')
+      jw.current = data.jawaban || {}; akhir.current = Date.now() + data.sisa_detik * 1000
+      setD(data); setSisa(data.sisa_detik)
+    })
+  }, [tes.id])
+  useEffect(() => {
+    if (!d || hasil) return
+    const t = setInterval(() => {
+      const s = Math.max(0, Math.round((akhir.current - Date.now()) / 1000))
+      setSisa(s); if (s <= 0) { clearInterval(t); kirim() }
+    }, 1000)
+    return () => clearInterval(t)
+  }, [d, hasil])
+  const pilih = (n, j) => {
+    jw.current = { ...jw.current, [n]: j }; tick((x) => x + 1)
+    supabase.rpc('kirim_jawaban', { p_tes: tes.id, p_jawaban: jw.current, p_final: false })
+  }
+  if (err) return <div className="mx-auto max-w-xl px-4 py-8"><Card><p className="text-red-700">{err}</p><Btn className="mt-3" onClick={onKembali}>Kembali</Btn></Card></div>
+  if (hasil) return <div className="mx-auto max-w-xl px-4 py-8"><Card><h2 className="text-xl font-bold">{tes.nama} selesai</h2><p className="my-2">Benar {hasil.benar} dari {hasil.total} soal (skor {hasil.skor}).</p><Btn onClick={onKembali}>Kembali ke daftar tes</Btn></Card></div>
+  if (!d) return <p className="p-8 text-center text-slate-500">Memuat soal...</p>
+  const q = d.soal[i], n = d.soal.length
+  return (
+    <div className="mx-auto max-w-xl px-4 py-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-600">{tes.nama}, soal {i + 1} dari {n}</p>
+        <b className={'text-xl tabular-nums ' + (sisa <= 60 ? 'text-red-700' : '')}>{Math.floor(sisa / 60)}:{String(sisa % 60).padStart(2, '0')}</b>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded bg-[#ddd3e6]"><div className="h-full bg-[#67338a]" style={{ width: ((i + 1) / n) * 100 + '%' }} /></div>
+      <Card>
+        <p className="mb-3">{q.q}</p>
+        {q.o.map((o, j) => (
+          <button key={j} onClick={() => pilih(q.nomor, j)}
+            className={'my-1.5 block w-full rounded-lg border p-2.5 text-left ' + (jw.current[q.nomor] === j ? 'border-[#67338a] bg-[#f1e8f7] ring-2 ring-[#67338a]' : 'border-[#ddd3e6] bg-white')}>{o}</button>
+        ))}
+      </Card>
+      <div className="flex justify-between">
+        <button disabled={!i} onClick={() => setI(i - 1)} className="rounded-lg border border-[#ddd3e6] px-5 py-2.5 disabled:opacity-40">Sebelumnya</button>
+        {i < n - 1 ? <Btn onClick={() => setI(i + 1)}>Berikutnya</Btn>
+          : <Btn onClick={() => Object.keys(jw.current).length < n ? alert('Masih ada soal yang belum dijawab.') : kirim()}>Selesaikan tes</Btn>}
+      </div>
+    </div>
+  )
+}
+
+function Beranda({ siswa, onMulai }) {
   const [tes, setTes] = useState(null)
   useEffect(() => { supabase.rpc('daftar_tes').then(({ data }) => setTes(data || [])) }, [])
   return (
@@ -98,8 +154,9 @@ function Beranda({ siswa }) {
               <b>{t.nama}</b>
               <p className="text-sm text-slate-500">{t.durasi_menit} menit{t.jumlah_soal > 0 ? `, ${t.jumlah_soal} soal` : ''}</p>
             </div>
-            {t.status !== 'belum' ? <span className="text-sm text-slate-500">Selesai</span>
-              : t.jumlah_soal > 0 ? <Btn>Mulai</Btn>
+            {t.status === 'berjalan' ? <Btn onClick={() => onMulai(t)}>Lanjutkan</Btn>
+              : t.status !== 'belum' ? <span className="text-sm text-slate-500">{`Selesai, skor ${t.skor}`}</span>
+              : t.jumlah_soal > 0 ? <Btn onClick={() => onMulai(t)}>Mulai</Btn>
               : <span className="text-sm text-slate-400">Segera hadir</span>}
           </div>
         </Card>
@@ -109,7 +166,7 @@ function Beranda({ siswa }) {
 }
 
 export default function App() {
-  const [sesi, setSesi] = useState(undefined), [siswa, setSiswa] = useState(undefined)
+  const [sesi, setSesi] = useState(undefined), [siswa, setSiswa] = useState(undefined), [aktif, setAktif] = useState(null)
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSesi(data.session))
     const { data } = supabase.auth.onAuthStateChange((_, s) => setSesi(s))
@@ -123,6 +180,7 @@ export default function App() {
   if (sesi === undefined || (sesi && siswa === undefined)) isi = <p className="p-8 text-center text-slate-500">Memuat...</p>
   else if (!sesi) isi = <Login />
   else if (!siswa) isi = <Verifikasi onSelesai={muat} />
-  else isi = <Beranda siswa={siswa} />
+  else if (aktif) isi = <Tes tes={aktif} onKembali={() => setAktif(null)} />
+  else isi = <Beranda siswa={siswa} onMulai={setAktif} />
   return (<><Header nama={siswa?.nama} onKeluar={keluar} />{isi}</>)
 }
