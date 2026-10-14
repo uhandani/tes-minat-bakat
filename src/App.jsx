@@ -82,9 +82,10 @@ function Verifikasi({ onSelesai }) {
   const [calon, setCalon] = useState(null), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
   const cek = async () => {
     setErr(''); setBusy(true)
-    const { data } = await supabase.rpc('cek_siswa', { p_nis: nis, p_nisn: nisn })
+    const { data, error } = await supabase.rpc('cek_siswa', { p_nis: nis, p_nisn: nisn })
     setBusy(false)
-    if (data?.length) setCalon(data[0])
+    if (error?.message?.includes('terlalu_banyak')) setErr('Terlalu banyak percobaan yang salah. Tunggu 15 menit lalu coba lagi, atau hubungi guru.')
+    else if (data?.length) setCalon(data[0])
     else setErr('NIS dan NISN tidak cocok, atau sudah dipakai akun lain. Hubungi guru jika kamu yakin datanya benar.')
   }
   const tautkan = async () => {
@@ -185,6 +186,7 @@ function Tes({ tes, onKembali }) {
       </div>
       <Card className="mt-4">
         <p className="mb-4 text-lg leading-relaxed">{q.q}</p>
+        {q.g && <img src={'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(q.g)} alt="Gambar soal" className="mx-auto mb-4 max-h-64 w-full object-contain" />}
         <div className="space-y-2.5">
           {q.o.map((o, j) => {
             const on = jw.current[q.nomor] === j
